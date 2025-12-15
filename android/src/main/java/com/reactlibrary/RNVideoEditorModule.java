@@ -1,32 +1,38 @@
 
 package com.reactlibrary;
 
-import com.coremedia.iso.boxes.Container;
+import android.content.Context;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import androidx.annotation.Nullable;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.transformer.Composition;
+import androidx.media3.transformer.EditedMediaItem;
+import androidx.media3.transformer.EditedMediaItemSequence;
+import androidx.media3.transformer.ExportException;
+import androidx.media3.transformer.ExportResult;
+import androidx.media3.transformer.Transformer;
+
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
-
-import android.util.Log;
 import com.facebook.react.bridge.ReadableArray;
+import com.google.common.collect.ImmutableList;
 
-import com.googlecode.mp4parser.authoring.Movie;
-import com.googlecode.mp4parser.authoring.Track;
-import com.googlecode.mp4parser.authoring.container.mp4.MovieCreator;
-import com.googlecode.mp4parser.authoring.tracks.AppendTrack;
-import com.googlecode.mp4parser.authoring.builder.DefaultMp4Builder;
-
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.channels.FileChannel;
+import java.io.File;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 
+@UnstableApi
 public class RNVideoEditorModule extends ReactContextBaseJavaModule {
 
   private final ReactApplicationContext reactContext;
+  private static final String TAG = "RNVideoEditor";
 
   public RNVideoEditorModule(ReactApplicationContext reactContext) {
     super(reactContext);
@@ -35,77 +41,71 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void merge(ReadableArray videoFiles, Callback errorCallback, Callback successCallback) {
-
-    List<Movie> inMovies = new ArrayList<Movie>();
-
-    for (int i = 0; i < videoFiles.size(); i++) {
-     String videoUrl = videoFiles.getString(i).replaceFirst("file://", "");
-
-      try {
-        inMovies.add(MovieCreator.build(videoUrl));
-      } catch (IOException e) {
-        errorCallback.invoke(e.getMessage());
-        e.printStackTrace();
-      }
+    if (videoFiles == null || videoFiles.size() == 0) {
+      errorCallback.invoke("No video files provided");
+      return;
     }
-
-    List<Track> videoTracks = new LinkedList<Track>();
-    List<Track> audioTracks = new LinkedList<Track>();
-
-    for (Movie m : inMovies) {
-      for (Track t : m.getTracks()) {
-        if (t.getHandler().equals("soun")) {
-          audioTracks.add(t);
-        }
-        if (t.getHandler().equals("vide")) {
-          videoTracks.add(t);
-        }
-      }
-    }
-
-    Movie result = new Movie();
-
-    if (!audioTracks.isEmpty()) {
-      try {
-        result.addTrack(new AppendTrack(audioTracks.toArray(new Track[audioTracks.size()])));
-      } catch (IOException e) {
-        errorCallback.invoke(e.getMessage());
-        e.printStackTrace();
-      }
-    }
-    if (!videoTracks.isEmpty()) {
-      try {
-        result.addTrack(new AppendTrack(videoTracks.toArray(new Track[videoTracks.size()])));
-      } catch (IOException e) {
-        errorCallback.invoke(e.getMessage());
-        e.printStackTrace();
-      }
-    }
-
-    Container out = new DefaultMp4Builder().build(result);
-    FileChannel fc = null;
 
     try {
+      // Create EditedMediaItems from video file paths
+      List<EditedMediaItem> editedMediaItems = new ArrayList<>();
 
-      Long tsLong = System.currentTimeMillis()/1000;
-      String ts = tsLong.toString();
+      for (int i = 0; i < videoFiles.size(); i++) {
+        String videoPath = videoFiles.getString(i).replaceFirst("file://", "");
+        Uri videoUri = Uri.fromFile(new File(videoPath));
 
-      String outputVideo = reactContext.getApplicationContext().getCacheDir().getAbsolutePath()+"output_"+ts+".mp4";
+        MediaItem mediaItem = MediaItem.fromUri(videoUri);
+        EditedMediaItem editedMediaItem = new EditedMediaItem.Builder(mediaItem).build();
+        editedMediaItems.add(editedMediaItem);
+      }
 
-      fc = new RandomAccessFile(String.format(outputVideo), "rw").getChannel();
+      // Create a sequence that concatenates all videos
+      EditedMediaItemSequence videoSequence = new EditedMediaItemSequence(
+          ImmutableList.copyOf(editedMediaItems)
+      );
 
-      Log.d("VIDEO", String.valueOf(fc));
-      out.writeContainer(fc);
-      fc.close();
-      successCallback.invoke("", outputVideo);
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-      errorCallback.invoke(e.getMessage());
-    } catch (IOException e) {
-      e.printStackTrace();
+      // Create composition with the video sequence
+      Composition composition = new Composition.Builder(
+          ImmutableList.of(videoSequence)
+      ).build();
+
+      // Generate output file path
+      long timestamp = System.currentTimeMillis() / 1000;
+      String outputPath = reactContext.getApplicationContext().getCacheDir().getAbsolutePath()
+          + "/output_" + timestamp + ".mp4";
+
+      // Create and configure Transformer
+      Transformer transformer = new Transformer.Builder(reactContext)
+          .addListener(new Transformer.Listener() {
+            @Override
+            public void onCompleted(Composition composition, ExportResult exportResult) {
+              Log.d(TAG, "Video merge completed successfully: " + outputPath);
+              new Handler(Looper.getMainLooper()).post(() -> {
+                successCallback.invoke("", outputPath);
+              });
+            }
+
+            @Override
+            public void onError(
+                Composition composition,
+                ExportResult exportResult,
+                ExportException exportException
+            ) {
+              Log.e(TAG, "Video merge failed", exportException);
+              new Handler(Looper.getMainLooper()).post(() -> {
+                errorCallback.invoke(exportException.getMessage());
+              });
+            }
+          })
+          .build();
+
+      // Start the transformation
+      transformer.start(composition, outputPath);
+
+    } catch (Exception e) {
+      Log.e(TAG, "Error setting up video merge", e);
       errorCallback.invoke(e.getMessage());
     }
-
   }
 
   @Override

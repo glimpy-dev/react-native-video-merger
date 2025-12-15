@@ -7,114 +7,163 @@
 {
     return dispatch_get_main_queue();
 }
+
 RCT_EXPORT_MODULE()
 
 RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
                   errorCallback:(RCTResponseSenderBlock)failureCallback
                   callback:(RCTResponseSenderBlock)successCallback) {
-    
+
+    if (!fileNames || fileNames.count == 0) {
+        failureCallback(@[@"No video files provided"]);
+        return;
+    }
+
     NSLog(@"%@ %@", NSStringFromClass([self class]), NSStringFromSelector(_cmd));
-    
-    [self MergeVideo:fileNames callback:successCallback];
-    
-    //successCallback(@[@"merge video", fileNames[0]]);
+
+    [self mergeVideos:fileNames
+       successCallback:successCallback
+       failureCallback:failureCallback];
 }
 
--(void)LoopVideo:(NSArray *)fileNames callback:(RCTResponseSenderBlock)successCallback
+- (void)mergeVideos:(NSArray *)fileNames
+     successCallback:(RCTResponseSenderBlock)successCallback
+     failureCallback:(RCTResponseSenderBlock)failureCallback
 {
-    for (id object in fileNames)
-    {
-        NSLog(@"video: %@", object);
-    }
-}
+    AVMutableComposition *composition = [[AVMutableComposition alloc] init];
 
--(void)MergeVideo:(NSArray *)fileNames callback:(RCTResponseSenderBlock)successCallback
-{
-    
-    CGFloat totalDuration;
-    totalDuration = 0;
-    
-    AVMutableComposition *mixComposition = [[AVMutableComposition alloc] init];
-    
-    AVMutableCompositionTrack *videoTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeVideo
-                                                                        preferredTrackID:kCMPersistentTrackID_Invalid];
-    
-    AVMutableCompositionTrack *audioTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio
-                                                                        preferredTrackID:kCMPersistentTrackID_Invalid];
-    
+    AVMutableCompositionTrack *videoTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo
+                                                                     preferredTrackID:kCMPersistentTrackID_Invalid];
+
+    AVMutableCompositionTrack *audioTrack = [composition addMutableTrackWithMediaType:AVMediaTypeAudio
+                                                                     preferredTrackID:kCMPersistentTrackID_Invalid];
+
     CMTime insertTime = kCMTimeZero;
-    CGAffineTransform originalTransform;
-    
-    for (id object in fileNames)
-    {
-        
-        AVAsset *asset = [AVAsset assetWithURL:[NSURL fileURLWithPath:object]];
-        
+    CGAffineTransform originalTransform = CGAffineTransformIdentity;
+    BOOL hasSetTransform = NO;
+    NSError *error = nil;
+
+    for (NSString *filePath in fileNames) {
+        // Clean file path and create URL
+        NSString *cleanPath = [filePath stringByReplacingOccurrencesOfString:@"file://" withString:@""];
+        NSURL *fileURL = [NSURL fileURLWithPath:cleanPath];
+
+        // Validate file exists
+        if (![[NSFileManager defaultManager] fileExistsAtPath:cleanPath]) {
+            failureCallback(@[[NSString stringWithFormat:@"File not found: %@", cleanPath]]);
+            return;
+        }
+
+        AVAsset *asset = [AVAsset assetWithURL:fileURL];
         CMTimeRange timeRange = CMTimeRangeMake(kCMTimeZero, asset.duration);
-        
-        [videoTrack insertTimeRange:timeRange
-                            ofTrack:[[asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0]
-                             atTime:insertTime
-                              error:nil];
-        
-        [audioTrack insertTimeRange:timeRange
-                            ofTrack:[[asset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0]
-                             atTime:insertTime
-                              error:nil];
-        
-        insertTime = CMTimeAdd(insertTime,asset.duration);
-        
-        // Get the first track from the asset and its transform.
-        NSArray* tracks = [asset tracks];
-        AVAssetTrack* track = [tracks objectAtIndex:0];
-        originalTransform = [track preferredTransform];
+
+        // Insert video track if available
+        NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+        if (videoTracks.count > 0) {
+            AVAssetTrack *assetVideoTrack = [videoTracks objectAtIndex:0];
+
+            BOOL success = [videoTrack insertTimeRange:timeRange
+                                               ofTrack:assetVideoTrack
+                                                atTime:insertTime
+                                                 error:&error];
+
+            if (!success) {
+                NSString *errorMsg = error ? error.localizedDescription : @"Failed to insert video track";
+                failureCallback(@[errorMsg]);
+                return;
+            }
+
+            // Preserve transform from the first video
+            if (!hasSetTransform) {
+                originalTransform = assetVideoTrack.preferredTransform;
+                hasSetTransform = YES;
+            }
+        }
+
+        // Insert audio track if available
+        NSArray *audioTracks = [asset tracksWithMediaType:AVMediaTypeAudio];
+        if (audioTracks.count > 0) {
+            AVAssetTrack *assetAudioTrack = [audioTracks objectAtIndex:0];
+
+            BOOL success = [audioTrack insertTimeRange:timeRange
+                                               ofTrack:assetAudioTrack
+                                                atTime:insertTime
+                                                 error:&error];
+
+            if (!success) {
+                NSString *errorMsg = error ? error.localizedDescription : @"Failed to insert audio track";
+                failureCallback(@[errorMsg]);
+                return;
+            }
+        }
+
+        insertTime = CMTimeAdd(insertTime, asset.duration);
     }
-    
-    // Use the transform from the original track to set the video track transform.
-    if (originalTransform.a || originalTransform.b || originalTransform.c || originalTransform.d) {
+
+    // Apply the preserved transform to the video track
+    if (hasSetTransform) {
         videoTrack.preferredTransform = originalTransform;
     }
-    
-    NSString* documentsDirectory= [self applicationDocumentsDirectory];
-    NSString * myDocumentPath = [documentsDirectory stringByAppendingPathComponent:@"merged_video.mp4"];
-    NSURL * urlVideoMain = [[NSURL alloc] initFileURLWithPath: myDocumentPath];
-    
-    if([[NSFileManager defaultManager] fileExistsAtPath:myDocumentPath])
-    {
-        [[NSFileManager defaultManager] removeItemAtPath:myDocumentPath error:nil];
-    }
-    
-    AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:mixComposition presetName:AVAssetExportPresetHighestQuality];
-    exporter.outputURL = urlVideoMain;
-    exporter.outputFileType = @"com.apple.quicktime-movie";
-    exporter.shouldOptimizeForNetworkUse = YES;
-    
-    [exporter exportAsynchronouslyWithCompletionHandler:^{
-        
-        switch ([exporter status])
-        {
-            case AVAssetExportSessionStatusFailed:
-                break;
-                
-            case AVAssetExportSessionStatusCancelled:
-                break;
-                
-            case AVAssetExportSessionStatusCompleted:
-                successCallback(@[@"merge video complete", myDocumentPath]);
-                break;
-                
-            default:
-                break;
+
+    // Generate output path
+    NSString *documentsDirectory = [self applicationDocumentsDirectory];
+    NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
+    NSString *fileName = [NSString stringWithFormat:@"merged_video_%ld.mp4", (long)timestamp];
+    NSString *outputPath = [documentsDirectory stringByAppendingPathComponent:fileName];
+    NSURL *outputURL = [NSURL fileURLWithPath:outputPath];
+
+    // Remove existing file if present
+    if ([[NSFileManager defaultManager] fileExistsAtPath:outputPath]) {
+        NSError *removeError = nil;
+        [[NSFileManager defaultManager] removeItemAtPath:outputPath error:&removeError];
+        if (removeError) {
+            NSLog(@"Warning: Failed to remove existing file: %@", removeError.localizedDescription);
         }
+    }
+
+    // Export the composition
+    AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:composition
+                                                                      presetName:AVAssetExportPresetHighestQuality];
+
+    if (!exporter) {
+        failureCallback(@[@"Failed to create export session"]);
+        return;
+    }
+
+    exporter.outputURL = outputURL;
+    exporter.outputFileType = AVFileTypeMPEG4;
+    exporter.shouldOptimizeForNetworkUse = YES;
+
+    [exporter exportAsynchronouslyWithCompletionHandler:^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            switch (exporter.status) {
+                case AVAssetExportSessionStatusCompleted:
+                    NSLog(@"Video merge completed: %@", outputPath);
+                    successCallback(@[@"", outputPath]);
+                    break;
+
+                case AVAssetExportSessionStatusFailed:
+                    NSLog(@"Video merge failed: %@", exporter.error.localizedDescription);
+                    failureCallback(@[exporter.error.localizedDescription ?: @"Export failed"]);
+                    break;
+
+                case AVAssetExportSessionStatusCancelled:
+                    failureCallback(@[@"Export was cancelled"]);
+                    break;
+
+                default:
+                    failureCallback(@[@"Export failed with unknown status"]);
+                    break;
+            }
+        });
     }];
 }
 
-- (NSString*) applicationDocumentsDirectory
+- (NSString *)applicationDocumentsDirectory
 {
-    NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString* basePath = ([paths count] > 0) ? [paths objectAtIndex:0] : nil;
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *basePath = paths.count > 0 ? paths[0] : NSTemporaryDirectory();
     return basePath;
 }
 
 @end
-  
