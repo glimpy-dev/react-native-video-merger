@@ -4,6 +4,7 @@
   "description": "",
   "author": "",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,5 +14,10 @@
   "license": "",
   "peerDependencies": {
     "react-native": "^0.80.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-native": "^0.73.0",
+    "typescript": "^5.9.3"
   }
 }
