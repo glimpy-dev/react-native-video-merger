@@ -40,7 +40,7 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void merge(ReadableArray videoFiles, Callback errorCallback, Callback successCallback) {
+  public void merge(ReadableArray videoFiles, @Nullable String outputPath, Callback errorCallback, Callback successCallback) {
     if (videoFiles == null || videoFiles.size() == 0) {
       errorCallback.invoke("No video files provided");
       return;
@@ -69,19 +69,24 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
           ImmutableList.of(videoSequence)
       ).build();
 
-      // Generate output file path
-      long timestamp = System.currentTimeMillis() / 1000;
-      String outputPath = reactContext.getApplicationContext().getCacheDir().getAbsolutePath()
-          + "/output_" + timestamp + ".mp4";
+      // Use provided output path or generate default one
+      String finalOutputPath;
+      if (outputPath != null && !outputPath.isEmpty()) {
+        finalOutputPath = outputPath.replaceFirst("file://", "");
+      } else {
+        long timestamp = System.currentTimeMillis() / 1000;
+        finalOutputPath = reactContext.getApplicationContext().getCacheDir().getAbsolutePath()
+            + "/output_" + timestamp + ".mp4";
+      }
 
       // Create and configure Transformer
       Transformer transformer = new Transformer.Builder(reactContext)
           .addListener(new Transformer.Listener() {
             @Override
             public void onCompleted(Composition composition, ExportResult exportResult) {
-              Log.d(TAG, "Video merge completed successfully: " + outputPath);
+              Log.d(TAG, "Video merge completed successfully: " + finalOutputPath);
               new Handler(Looper.getMainLooper()).post(() -> {
-                successCallback.invoke("", outputPath);
+                successCallback.invoke("", finalOutputPath);
               });
             }
 
@@ -100,7 +105,7 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
           .build();
 
       // Start the transformation
-      transformer.start(composition, outputPath);
+      transformer.start(composition, finalOutputPath);
 
     } catch (Exception e) {
       Log.e(TAG, "Error setting up video merge", e);

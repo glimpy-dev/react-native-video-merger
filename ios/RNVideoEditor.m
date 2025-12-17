@@ -11,6 +11,7 @@
 RCT_EXPORT_MODULE()
 
 RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
+                  outputPath:(NSString *)outputPath
                   errorCallback:(RCTResponseSenderBlock)failureCallback
                   callback:(RCTResponseSenderBlock)successCallback) {
 
@@ -22,11 +23,13 @@ RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
     NSLog(@"%@ %@", NSStringFromClass([self class]), NSStringFromSelector(_cmd));
 
     [self mergeVideos:fileNames
+           outputPath:outputPath
        successCallback:successCallback
        failureCallback:failureCallback];
 }
 
 - (void)mergeVideos:(NSArray *)fileNames
+         outputPath:(NSString *)outputPath
      successCallback:(RCTResponseSenderBlock)successCallback
      failureCallback:(RCTResponseSenderBlock)failureCallback
 {
@@ -105,17 +108,22 @@ RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
         videoTrack.preferredTransform = originalTransform;
     }
 
-    // Generate output path
-    NSString *documentsDirectory = [self applicationDocumentsDirectory];
-    NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
-    NSString *fileName = [NSString stringWithFormat:@"merged_video_%ld.mp4", (long)timestamp];
-    NSString *outputPath = [documentsDirectory stringByAppendingPathComponent:fileName];
-    NSURL *outputURL = [NSURL fileURLWithPath:outputPath];
+    // Use provided output path or generate default one
+    NSString *finalOutputPath;
+    if (outputPath && outputPath.length > 0) {
+        finalOutputPath = [outputPath stringByReplacingOccurrencesOfString:@"file://" withString:@""];
+    } else {
+        NSString *documentsDirectory = [self applicationDocumentsDirectory];
+        NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
+        NSString *fileName = [NSString stringWithFormat:@"merged_video_%ld.mp4", (long)timestamp];
+        finalOutputPath = [documentsDirectory stringByAppendingPathComponent:fileName];
+    }
+    NSURL *outputURL = [NSURL fileURLWithPath:finalOutputPath];
 
     // Remove existing file if present
-    if ([[NSFileManager defaultManager] fileExistsAtPath:outputPath]) {
+    if ([[NSFileManager defaultManager] fileExistsAtPath:finalOutputPath]) {
         NSError *removeError = nil;
-        [[NSFileManager defaultManager] removeItemAtPath:outputPath error:&removeError];
+        [[NSFileManager defaultManager] removeItemAtPath:finalOutputPath error:&removeError];
         if (removeError) {
             NSLog(@"Warning: Failed to remove existing file: %@", removeError.localizedDescription);
         }
@@ -138,8 +146,8 @@ RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
         dispatch_async(dispatch_get_main_queue(), ^{
             switch (exporter.status) {
                 case AVAssetExportSessionStatusCompleted:
-                    NSLog(@"Video merge completed: %@", outputPath);
-                    successCallback(@[@"", outputPath]);
+                    NSLog(@"Video merge completed: %@", finalOutputPath);
+                    successCallback(@[@"", finalOutputPath]);
                     break;
 
                 case AVAssetExportSessionStatusFailed:
