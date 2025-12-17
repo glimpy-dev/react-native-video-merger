@@ -72,7 +72,7 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
       // Use provided output path or generate default one
       String finalOutputPath;
       if (outputPath != null && !outputPath.isEmpty()) {
-        finalOutputPath = outputPath.replaceFirst("file://", "");
+        finalOutputPath = "file://" + outputPath.replaceFirst("file://", "");
       } else {
         long timestamp = System.currentTimeMillis() / 1000;
         finalOutputPath = reactContext.getApplicationContext().getCacheDir().getAbsolutePath()
