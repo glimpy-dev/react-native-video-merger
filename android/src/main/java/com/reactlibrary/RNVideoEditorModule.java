@@ -16,6 +16,7 @@ import androidx.media3.transformer.EditedMediaItemSequence;
 import androidx.media3.transformer.ExportException;
 import androidx.media3.transformer.ExportResult;
 import androidx.media3.transformer.Transformer;
+import androidx.media3.transformer.VideoEncoderSettings;
 
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -40,7 +41,7 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void merge(ReadableArray videoFiles, @Nullable String outputPath, Callback errorCallback, Callback successCallback) {
+  public void merge(ReadableArray videoFiles, @Nullable String outputPath, String quality, Callback errorCallback, Callback successCallback) {
     if (videoFiles == null || videoFiles.size() == 0) {
       errorCallback.invoke("No video files provided");
       return;
@@ -52,7 +53,14 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
 
       for (int i = 0; i < videoFiles.size(); i++) {
         String videoPath = videoFiles.getString(i).replaceFirst("file://", "");
-        Uri videoUri = Uri.fromFile(new File(videoPath));
+        File file = new File(videoPath);
+        
+        if (!file.exists()) {
+           errorCallback.invoke("File does not exist: " + videoPath);
+           return;
+        }
+
+        Uri videoUri = Uri.fromFile(file);
 
         MediaItem mediaItem = MediaItem.fromUri(videoUri);
         EditedMediaItem editedMediaItem = new EditedMediaItem.Builder(mediaItem).build();
@@ -79,8 +87,27 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
             + "/output_" + timestamp + ".mp4";
       }
 
+      // Configure VideoEncoderSettings based on quality
+      Transformer.Builder transformerBuilder = new Transformer.Builder(reactContext);
+      
+      if (quality != null) {
+          int bitrate = -1;
+          if (quality.equals("low")) {
+              bitrate = 1_000_000; // 1 Mbps
+          } else if (quality.equals("medium")) {
+              bitrate = 2_500_000; // 2.5 Mbps
+          }
+          
+          if (bitrate != -1) {
+              VideoEncoderSettings videoEncoderSettings = new VideoEncoderSettings.Builder()
+                  .setBitrate(bitrate)
+                  .build();
+              transformerBuilder.setVideoEncoderSettings(videoEncoderSettings);
+          }
+      }
+
       // Create and configure Transformer
-      Transformer transformer = new Transformer.Builder(reactContext)
+      Transformer transformer = transformerBuilder
           .addListener(new Transformer.Listener() {
             @Override
             public void onCompleted(Composition composition, ExportResult exportResult) {

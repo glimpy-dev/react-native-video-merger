@@ -1,59 +1,59 @@
-# react-native-video-editor
-Module for react native to merge multiple video.
+# react-native-video-merger
 
-## Getting started
+Merge multiple videos in React Native.
 
-`$ npm install react-native-video-editor --save`
+## Installation
 
-### Mostly automatic installation
+```bash
+npm install react-native-video-merger
+```
 
-`$ react-native link react-native-video-editor`
+## Usage
 
-### Manual installation
+```typescript
+import VideoEditor, { VideoMergeConfig } from 'react-native-video-merger';
 
+const config: VideoMergeConfig = {
+  videoFiles: ['file:///path/to/video1.mp4', 'file:///path/to/video2.mp4'],
+  outputPath: 'file:///path/to/output.mp4', // Optional. If omitted, a temp file is created.
+  onSuccess: (msg: string, file: string) => {
+    console.log('Merge success:', file);
+  },
+  onError: (error: string) => {
+    console.error('Merge failed:', error);
+  },
+};
 
-#### iOS
+VideoEditor.merge(config);
+```
 
-1. In XCode, in the project navigator, right click `Libraries` ➜ `Add Files to [your project's name]`
-2. Go to `node_modules` ➜ `react-native-video-editor` and add `RNVideoEditor.xcodeproj`
-3. In XCode, in the project navigator, select your project. Add `libRNVideoEditor.a` to your project's `Build Phases` ➜ `Link Binary With Libraries`
-4. Run your project (`Cmd+R`)<
+### Permissions
 
 #### Android
 
-1. Open up `android/app/src/main/java/[...]/MainActivity.java`
-  - Add `import com.reactlibrary.RNVideoEditorPackage;` to the imports at the top of the file
-  - Add `new RNVideoEditorPackage()` to the list returned by the `getPackages()` method
-2. Append the following lines to `android/settings.gradle`:
-  	```
-  	include ':react-native-video-editor'
-  	project(':react-native-video-editor').projectDir = new File(rootProject.projectDir, 	'../node_modules/react-native-video-editor/android')
-  	```
-3. Insert the following lines inside the dependencies block in `android/app/build.gradle`:
-  	```
-      compile project(':react-native-video-editor')
-  	```
+Ensure you have permissions to read the input files. If accessing external storage, you may need:
 
-## Usage
-```javascript
-import RNVideoEditor from 'react-native-video-editor';
-
-RNVideoEditor.merge(
-  ['videourl.mp4', 'video2url.mp4'],
-  (results) => {
-    alert('Error: ' + results);
-  },
-  (results, file) => {
-    alert('Success : ' + results + " file: " + file);
-  }
-);
+```xml
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 ```
-## To do
 
-**iOS**
-- [x] Merge multiple video
-- [ ] Rotate video
+#### iOS
 
-**Android**
-- [x] Merge multiple video
-- [ ] Rotate video
+Standard file access permissions apply.
+
+## API
+
+### `merge(config: VideoMergeConfig)`
+
+Merges the provided video files into a single video file.
+
+#### `VideoMergeConfig`
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `videoFiles` | `string[]` | Array of local file URIs (starting with `file://`). |
+| `outputPath` | `string` | (Optional) Output path. |
+| `quality` | `string` | (Optional) `low`, `medium`, or `high`. Defaults to `high`. |
+| `onSuccess` | `(msg: string, file: string) => void` | Callback on success. `file` is the path to the merged video. |
+| `onError` | `(error: string) => void` | Callback on failure. |

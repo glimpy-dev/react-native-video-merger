@@ -1,17 +1,29 @@
 {
-  "name": "react-native-video-editor",
-  "version": "0.3.0",
-  "description": "",
-  "author": "",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "name": "react-native-video-merger",
+  "version": "1.0.0",
+  "description": "Merge multiple videos in React Native",
+  "main": "lib/commonjs/index.js",
+  "types": "lib/commonjs/index.d.ts",
+  "files": [
+    "src",
+    "lib",
+    "android",
+    "ios",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "prepare": "npm run build"
   },
   "keywords": [
-    "react-native"
+    "react-native",
+    "video",
+    "merge",
+    "editor"
   ],
-  "license": "",
+  "license": "MIT",
   "peerDependencies": {
     "react-native": "^0.80.2"
   },

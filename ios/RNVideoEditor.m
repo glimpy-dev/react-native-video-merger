@@ -12,6 +12,7 @@ RCT_EXPORT_MODULE()
 
 RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
                   outputPath:(NSString *)outputPath
+                  quality:(NSString *)quality
                   errorCallback:(RCTResponseSenderBlock)failureCallback
                   callback:(RCTResponseSenderBlock)successCallback) {
 
@@ -20,16 +21,25 @@ RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
         return;
     }
 
-    NSLog(@"%@ %@", NSStringFromClass([self class]), NSStringFromSelector(_cmd));
+    NSString *preset = AVAssetExportPresetHighestQuality;
+    if ([quality isEqualToString:@"low"]) {
+        preset = AVAssetExportPresetLowQuality;
+    } else if ([quality isEqualToString:@"medium"]) {
+        preset = AVAssetExportPresetMediumQuality;
+    }
+
+    NSLog(@"%@ %@ with quality: %@", NSStringFromClass([self class]), NSStringFromSelector(_cmd), preset);
 
     [self mergeVideos:fileNames
            outputPath:outputPath
+              preset:preset
        successCallback:successCallback
        failureCallback:failureCallback];
 }
 
 - (void)mergeVideos:(NSArray *)fileNames
          outputPath:(NSString *)outputPath
+             preset:(NSString *)preset
      successCallback:(RCTResponseSenderBlock)successCallback
      failureCallback:(RCTResponseSenderBlock)failureCallback
 {
@@ -131,7 +141,7 @@ RCT_EXPORT_METHOD(merge:(NSArray *)fileNames
 
     // Export the composition
     AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:composition
-                                                                      presetName:AVAssetExportPresetHighestQuality];
+                                                                      presetName:preset];
 
     if (!exporter) {
         failureCallback(@[@"Failed to create export session"]);
