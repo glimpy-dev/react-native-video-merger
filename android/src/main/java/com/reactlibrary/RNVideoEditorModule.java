@@ -23,6 +23,8 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableMap;
 import com.google.common.collect.ImmutableList;
 
 import java.io.File;
@@ -56,8 +58,8 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
         File file = new File(videoPath);
         
         if (!file.exists()) {
-           errorCallback.invoke("File does not exist: " + videoPath);
-           return;
+            errorCallback.invoke("File does not exist: " + videoPath);
+            return;
         }
 
         Uri videoUri = Uri.fromFile(file);
@@ -123,9 +125,16 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
                 ExportResult exportResult,
                 ExportException exportException
             ) {
+              WritableMap errorMap = Arguments.createMap();
+              errorMap.putString("message", "Export failed: " + exportException.getMessage());
+              errorMap.putInt("code", exportException.errorCode);
+              if (exportException.getCause() != null) {
+                  errorMap.putString("cause", exportException.getCause().getMessage());
+              }
+              
               Log.e(TAG, "Video merge failed", exportException);
               new Handler(Looper.getMainLooper()).post(() -> {
-                errorCallback.invoke(exportException.getMessage());
+                errorCallback.invoke(errorMap);
               });
             }
           })
@@ -133,10 +142,15 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
 
       // Start the transformation
       transformer.start(composition, finalOutputPath);
-
+      
     } catch (Exception e) {
-      Log.e(TAG, "Error setting up video merge", e);
-      errorCallback.invoke(e.getMessage());
+        WritableMap errorMap = Arguments.createMap();
+        errorMap.putString("message", "Setup failed: " + e.getMessage());
+        errorMap.putString("type", e.getClass().getSimpleName());
+        errorMap.putString("stack", Log.getStackTraceString(e));
+            
+        Log.e(TAG, "Error setting up video merge", e);
+        errorCallback.invoke(errorMap);
     }
   }
 
