@@ -16,10 +16,11 @@ import VideoEditor, { VideoMergeConfig } from 'react-native-video-merger';
 const config: VideoMergeConfig = {
   videoFiles: ['file:///path/to/video1.mp4', 'file:///path/to/video2.mp4'],
   outputPath: 'file:///path/to/output.mp4', // Optional. If omitted, a temp file is created.
+  quality: 'medium', // Optional: 'low' | 'medium' | 'high'
   onSuccess: (msg: string, file: string) => {
     console.log('Merge success:', file);
   },
-  onError: (error: string) => {
+  onError: (error) => {
     console.error('Merge failed:', error);
   },
 };
@@ -56,4 +57,4 @@ Merges the provided video files into a single video file.
 | `outputPath` | `string` | (Optional) Output path. |
 | `quality` | `string` | (Optional) `low`, `medium`, or `high`. Defaults to `high`. |
 | `onSuccess` | `(msg: string, file: string) => void` | Callback on success. `file` is the path to the merged video. |
-| `onError` | `(error: string) => void` | Callback on failure. |
+| `onError` | `(error: VideoMergeError \| string) => void` | Callback on failure. Returns an error object (Android) or string (iOS). |
