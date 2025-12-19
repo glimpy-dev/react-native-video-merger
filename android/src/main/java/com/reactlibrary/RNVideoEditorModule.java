@@ -165,4 +165,3 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
     return "RNVideoEditor";
   }
 }
-q
