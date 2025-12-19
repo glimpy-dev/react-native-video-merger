@@ -17,6 +17,7 @@ import androidx.media3.transformer.ExportException;
 import androidx.media3.transformer.ExportResult;
 import androidx.media3.transformer.Transformer;
 import androidx.media3.transformer.VideoEncoderSettings;
+import androidx.media3.transformer.DefaultEncoderFactory;
 
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -104,7 +105,12 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
               VideoEncoderSettings videoEncoderSettings = new VideoEncoderSettings.Builder()
                   .setBitrate(bitrate)
                   .build();
-              transformerBuilder.setVideoEncoderSettings(videoEncoderSettings);
+                  
+              DefaultEncoderFactory encoderFactory = new DefaultEncoderFactory.Builder(reactContext)
+                  .setRequestedVideoEncoderSettings(videoEncoderSettings)
+                  .build();
+                  
+              transformerBuilder.setEncoderFactory(encoderFactory);
           }
       }
 
@@ -159,3 +165,4 @@ public class RNVideoEditorModule extends ReactContextBaseJavaModule {
     return "RNVideoEditor";
   }
 }
+q
